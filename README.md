@@ -21,7 +21,7 @@ This was built and tested in a **Linux container with no GPU and no Windows mach
 | SFU + P2P streaming, codec switching, simulcast, pause, voice, reconnection, kick/ban, TURN relay | **Tested** end to end with real Chromium instances capturing a real (virtual) display — 27 scenarios |
 | All 10 screens and their controls | **Tested** through the UI in the web client (same code the desktop app loads) |
 | Desktop shell (Rust) | **Compiles** for Linux and type-checks for `x86_64-pc-windows-msvc`; **never run on Windows** |
-| Windows installer (NSIS) | Built by GitHub Actions (`.github/workflows/ci.yml`); **not installed or run by a human yet** |
+| Windows installer (NSIS) | **Builds successfully** on a GitHub Actions Windows runner (artifact `vision-stream-windows-installer`); **not yet installed or run on a Windows PC** |
 | Windows Graphics Capture, NVENC, hardware AV1/HEVC, system-audio capture on Windows | **Not verified** — they are provided by WebView2 and can only be confirmed on a Windows PC with an NVIDIA GPU |
 | 1440p at 120 FPS | **Not demonstrated.** The test VM (4 vCPU, software encoders) reached ~44 FPS at 1440p; the app reported exactly that |
 | Docker image / compose stack | Written; image build could not complete in the sandbox (no registry access from the build container) |
