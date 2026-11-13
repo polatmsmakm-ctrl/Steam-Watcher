@@ -214,6 +214,7 @@ export class RoomManager {
     const publication: Publication = { id, peerId: peer.id, kind, source, paused: false };
     peer.publications.set(id, publication);
     peer.room.broadcast('media.published', { publication }, peer);
+    this.log(`room ${peer.room.id}: ${peer.user.username} published ${source} (${id})`);
     return publication;
   }
 
@@ -222,6 +223,7 @@ export class RoomManager {
     peer.producers.get(id)?.close();
     peer.producers.delete(id);
     peer.room.broadcast('media.unpublished', { id, peerId: peer.id }, peer);
+    this.log(`room ${peer.room.id}: ${peer.user.username} unpublished ${id}`);
   }
 
   closeAll(): void {

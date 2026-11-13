@@ -4,6 +4,6 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "test": "node run.mjs"
+    "test": "xvfb-run -a -s \"-screen 0 2560x1440x24\" node run.mjs"
   }
 }
