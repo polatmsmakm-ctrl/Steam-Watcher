@@ -51,6 +51,20 @@ describe('authentication', () => {
   });
 });
 
+describe('http', () => {
+  test('health endpoint, unknown API route, malformed and traversal paths', async () => {
+    const health = await (await fetch(`${app.url}/api/health`)).json() as { ok: boolean; name: string; workers: unknown[] };
+    assert.equal(health.ok, true);
+    assert.equal(health.name, 'vision-stream');
+    assert.equal(health.workers.length, 1);
+    assert.equal((await fetch(`${app.url}/api/nope`, { method: 'POST', body: '{}' })).status, 404);
+    assert.equal((await fetch(`${app.url}/%E0%A4%A`)).status, 400);
+    const traversal = await fetch(`${app.url}/..%2F..%2F..%2Fetc%2Fpasswd`);
+    assert.ok(!(await traversal.text()).includes('root:'), 'must not serve files outside the web directory');
+    assert.equal((await fetch(`${app.url}/api/health`)).status, 200, 'server still alive');
+  });
+});
+
 describe('friends', () => {
   test('request, accept, presence, remove', async () => {
     const a = await Client.register(app.url, 'fra');

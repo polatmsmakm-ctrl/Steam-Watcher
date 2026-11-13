@@ -3,7 +3,7 @@ import {
 } from 'lucide-react';
 import { useEffect, type ReactNode } from 'react';
 import { session } from './session.ts';
-import { useApp, type View } from './store.ts';
+import { useApp, type Toast, type View } from './store.ts';
 import { Avatar } from './ui.tsx';
 import { AudioSettingsView } from './views/AudioSettings.tsx';
 import { AuthView } from './views/Auth.tsx';
@@ -122,21 +122,24 @@ function Sidebar() {
 
 function Toasts() {
   const toasts = useApp((s) => s.toasts);
-  const dismiss = useApp((s) => s.dismissToast);
-  useEffect(() => {
-    if (!toasts.length) return;
-    const oldest = toasts[0]!;
-    const timer = setTimeout(() => dismiss(oldest.id), oldest.kind === 'error' ? 7000 : 4000);
-    return () => clearTimeout(timer);
-  }, [toasts, dismiss]);
   return (
     <div className="toasts" role="status" aria-live="polite">
-      {toasts.map((t) => (
-        <div key={t.id} className={`toast ${t.kind}`} onClick={() => dismiss(t.id)}>
-          {t.kind === 'error' ? <AlertCircle /> : t.kind === 'success' ? <CheckCircle2 /> : <Info />}
-          {t.text}
-        </div>
-      ))}
+      {toasts.map((t) => <ToastItem key={t.id} toast={t} />)}
+    </div>
+  );
+}
+
+/** Each toast runs its own timer, so a burst of messages does not queue up on screen. */
+function ToastItem({ toast: t }: { toast: Toast }) {
+  const dismiss = useApp((s) => s.dismissToast);
+  useEffect(() => {
+    const timer = setTimeout(() => dismiss(t.id), t.kind === 'error' ? 7000 : 4000);
+    return () => clearTimeout(timer);
+  }, [t.id, t.kind, dismiss]);
+  return (
+    <div className={`toast ${t.kind}`} onClick={() => dismiss(t.id)}>
+      {t.kind === 'error' ? <AlertCircle /> : t.kind === 'success' ? <CheckCircle2 /> : <Info />}
+      {t.text}
     </div>
   );
 }

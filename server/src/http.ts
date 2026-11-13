@@ -84,7 +84,13 @@ export function createHttpHandler(deps: {
     }
 
     if (req.method !== 'GET' && req.method !== 'HEAD') return void res.writeHead(405).end();
-    serveStatic(config.webDir, url.pathname, res);
+    try {
+      serveStatic(config.webDir, url.pathname, res);
+    } catch {
+      // e.g. malformed percent-encoding in the path
+      if (!res.headersSent) res.writeHead(400);
+      res.end();
+    }
   };
 }
 
@@ -108,7 +114,7 @@ async function readJson(req: http.IncomingMessage): Promise<Record<string, unkno
 /** Serves the built web client (app/dist) so invite links open in any browser. */
 function serveStatic(root: string, pathname: string, res: http.ServerResponse): void {
   let file = path.join(root, path.normalize(decodeURIComponent(pathname)));
-  if (!file.startsWith(root)) return void res.writeHead(403).end();
+  if (file !== root && !file.startsWith(root + path.sep)) return void res.writeHead(403).end();
   if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(root, 'index.html');
   if (!fs.existsSync(file)) {
     res.writeHead(404, { 'content-type': 'text/plain' });
