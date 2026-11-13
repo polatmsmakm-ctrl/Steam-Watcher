@@ -3,7 +3,8 @@ import type { JoinResult, Publication } from '../../../shared/protocol.ts';
 import type { Signaling } from '../lib/signaling.ts';
 import { CODEC_MIME, codecFromMime, sendableCodecs, type CodecName } from './codecs.ts';
 import {
-  applySenderParams, type EncodingUpdate, type MediaConnectionState, type MediaTransport, type PublishOptions, type TransportEvents,
+  applySenderParams, type EncodingUpdate, type MediaConnectionState, type MediaTransport, type PublishOptions, type TransportConfig,
+  type TransportEvents,
 } from './transport.ts';
 
 /**
@@ -21,7 +22,7 @@ export class SfuTransport implements MediaTransport {
   private closed = false;
   private repairTimer = 0;
 
-  constructor(private sig: Signaling, private join: JoinResult, private ev: TransportEvents) {}
+  constructor(private sig: Signaling, private join: JoinResult, private ev: TransportEvents, private config: TransportConfig) {}
 
   async start(): Promise<void> {
     await this.device.load({ routerRtpCapabilities: this.join.routerRtpCapabilities as msc.RtpCapabilities });
@@ -45,7 +46,11 @@ export class SfuTransport implements MediaTransport {
 
   private async createTransport(direction: 'send' | 'recv'): Promise<msc.Transport> {
     const params = await this.sig.call('media.createTransport', { direction });
-    const options = { ...(params as unknown as msc.TransportOptions), iceServers: this.join.iceServers };
+    const options: msc.TransportOptions = {
+      ...(params as unknown as msc.TransportOptions),
+      iceServers: this.join.iceServers,
+      iceTransportPolicy: this.config.relayOnly ? 'relay' : 'all',
+    };
     const t = direction === 'send' ? this.device.createSendTransport(options) : this.device.createRecvTransport(options);
     if (this.closed) t.close();
     t.on('connect', ({ dtlsParameters }, done, fail) => {

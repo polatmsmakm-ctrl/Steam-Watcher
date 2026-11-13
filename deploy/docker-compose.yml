@@ -1,0 +1,60 @@
+# Production stack: room service + SFU, Caddy for automatic HTTPS, coturn for TURN.
+# Host networking is used so WebRTC UDP reaches the SFU and the relay without NAT hairpins (Linux hosts).
+#
+#   cp .env.example .env   # then edit it
+#   docker compose up -d --build
+services:
+  vision-stream:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      HOST: 127.0.0.1 # only Caddy talks to it
+      PORT: "8080"
+      PUBLIC_URL: https://${DOMAIN}
+      RTC_ANNOUNCED_ADDRESS: ${PUBLIC_IP}
+      RTC_BASE_PORT: "40000"
+      RTC_WORKERS: "${RTC_WORKERS:-4}"
+      STUN_URLS: stun:${DOMAIN}:3478
+      TURN_URLS: turn:${DOMAIN}:3478?transport=udp,turn:${DOMAIN}:3478?transport=tcp
+      TURN_SECRET: ${TURN_SECRET}
+      ALLOW_GUESTS: "${ALLOW_GUESTS:-true}"
+    volumes:
+      - data:/data
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    network_mode: host
+    command: caddy reverse-proxy --from ${DOMAIN} --to 127.0.0.1:8080
+    volumes:
+      - caddy:/data
+
+  coturn:
+    image: coturn/coturn:4.6
+    restart: unless-stopped
+    network_mode: host
+    command:
+      - --listening-port=3478
+      - --external-ip=${PUBLIC_IP}
+      - --realm=${DOMAIN}
+      - --use-auth-secret
+      - --static-auth-secret=${TURN_SECRET}
+      - --min-port=49160
+      - --max-port=49400
+      - --no-cli
+      - --no-tls
+      - --no-dtls
+      - --fingerprint
+      # The SFU listens on this host's public address, so relaying to it must stay allowed;
+      # private ranges are blocked so the relay cannot be used to reach your internal network.
+      - --denied-peer-ip=10.0.0.0-10.255.255.255
+      - --denied-peer-ip=172.16.0.0-172.31.255.255
+      - --denied-peer-ip=192.168.0.0-192.168.255.255
+      - --denied-peer-ip=127.0.0.0-127.255.255.255
+
+volumes:
+  data:
+  caddy:

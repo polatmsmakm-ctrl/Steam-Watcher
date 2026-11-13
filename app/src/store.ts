@@ -42,7 +42,8 @@ export interface Settings {
     latencyMode: LatencyMode;
     statsOverlay: boolean;
     reducedMotion: boolean;
-    notifySounds: boolean;
+    /** Send media only through the TURN relay, so peers never learn this device's IP address. */
+    relayOnly: boolean;
   };
 }
 
@@ -56,7 +57,7 @@ export const DEFAULT_SETTINGS: Settings = {
     micId: '', speakerId: '', noiseSuppression: true, echoCancellation: true, autoGainControl: true,
     streamVolume: 1, voiceVolume: 1, streamMuted: false, joinMuted: true,
   },
-  app: { latencyMode: 'ultra', statsOverlay: false, reducedMotion: false, notifySounds: true },
+  app: { latencyMode: 'ultra', statsOverlay: false, reducedMotion: false, relayOnly: false },
 };
 
 function pick(f: { width: number; height: number; fps: number; bitrateKbps: number }) {

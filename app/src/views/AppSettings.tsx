@@ -75,8 +75,8 @@ export function AppSettingsView() {
         </div>
 
         <div className="card">
-          <h2>Playback</h2>
-          <p>How incoming streams are buffered</p>
+          <h2>Playback and privacy</h2>
+          <p>How incoming streams are buffered and routed</p>
           <Field label="Latency mode" hint="Ultra-low plays frames as soon as they arrive; Smooth adds a 150 ms buffer that hides network jitter.">
             <Segmented<LatencyMode> label="Latency mode" value={settings.app.latencyMode}
               onChange={(latencyMode) => { update({ app: { latencyMode } }); setTimeout(() => session.applyLatencyMode()); }}
@@ -84,6 +84,8 @@ export function AppSettingsView() {
           </Field>
           <div style={{ marginTop: 12 }}>
             <ToggleRow title="Statistics overlay" hint="Show live numbers on top of the stream" on={settings.app.statsOverlay} onChange={(statsOverlay) => update({ app: { statsOverlay } })} />
+            <ToggleRow title="Relay-only connections" hint="Route all media through the server's TURN relay so other participants never see your IP address. Adds latency; needs a TURN server. Applies to the next room you join."
+              on={settings.app.relayOnly} onChange={(relayOnly) => update({ app: { relayOnly } })} />
             <ToggleRow title="Reduce motion" hint="Turn off interface animations" on={settings.app.reducedMotion} onChange={(reducedMotion) => update({ app: { reducedMotion } })} />
           </div>
         </div>

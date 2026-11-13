@@ -193,7 +193,11 @@ class Session {
       onConnectionState: (ice) => set({ ice }),
       onUnrecoverable: () => void this.rebuild(),
     };
-    const transport = join.room.mode === 'sfu' ? new SfuTransport(this.sig, join, events) : new P2pTransport(this.sig, join, events);
+    const config = { relayOnly: get().settings.app.relayOnly };
+    if (config.relayOnly && !join.iceServers.some((s) => s.urls.some((u) => u.startsWith('turn')))) {
+      toast('error', 'Relay-only mode is on, but this server has no TURN relay configured. Media cannot connect.');
+    }
+    const transport = join.room.mode === 'sfu' ? new SfuTransport(this.sig, join, events, config) : new P2pTransport(this.sig, join, events, config);
     this.transport = transport;
     await transport.start();
     for (const peer of join.room.peers) {

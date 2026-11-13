@@ -2,7 +2,7 @@ import type { JoinResult, Publication } from '../../../shared/protocol.ts';
 import type { Signaling } from '../lib/signaling.ts';
 import { CODEC_MIME, sendableCodecs, type CodecName } from './codecs.ts';
 import {
-  applySenderParams, type EncodingUpdate, type MediaTransport, type PublishOptions, type TransportEvents,
+  applySenderParams, type EncodingUpdate, type MediaTransport, type PublishOptions, type TransportConfig, type TransportEvents,
 } from './transport.ts';
 
 interface LocalPub {
@@ -38,7 +38,7 @@ export class P2pTransport implements MediaTransport {
   private offSignal: () => void;
   private closed = false;
 
-  constructor(private sig: Signaling, private join: JoinResult, private ev: TransportEvents) {
+  constructor(private sig: Signaling, private join: JoinResult, private ev: TransportEvents, private config: TransportConfig) {
     this.offSignal = sig.on('p2p.signal', ({ from, data }) => {
       if (from === this.remotePeerId) void this.onSignal(data as Signal).catch((e) => console.warn('p2p signal failed', e));
     });
@@ -57,7 +57,10 @@ export class P2pTransport implements MediaTransport {
     if (this.closed) return;
     this.teardownPeer();
     this.remotePeerId = peerId;
-    const pc = new RTCPeerConnection({ iceServers: this.join.iceServers });
+    const pc = new RTCPeerConnection({
+      iceServers: this.join.iceServers,
+      iceTransportPolicy: this.config.relayOnly ? 'relay' : 'all',
+    });
     this.pc = pc;
     pc.onnegotiationneeded = async () => {
       try {

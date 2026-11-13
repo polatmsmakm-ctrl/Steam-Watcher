@@ -2,7 +2,7 @@
 // real Chromium instances through the real UI. Screen capture, encoding,
 // transport and decoding are all genuine — only the screen being captured is
 // a virtual X display (run via `xvfb-run`, see package.json / docs/TESTING.md).
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -39,12 +39,26 @@ async function step(name, fn) {
 const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function startServer() {
+const TURN_SECRET = 'e2e-turn-secret';
+/** Starts a local coturn if it is installed; the relay scenarios are skipped otherwise. */
+function startTurn() {
+  if (spawnSync('which', ['turnserver']).status !== 0) return null;
+  const proc = spawn('turnserver', [
+    '-n', '--listening-ip=127.0.0.1', '--relay-ip=127.0.0.1', '--listening-port=3478', '--min-port=49160', '--max-port=49200',
+    '--use-auth-secret', `--static-auth-secret=${TURN_SECRET}`, '--realm=visionstream.test', '--allow-loopback-peers', '--no-tls', '--no-dtls',
+    '--no-cli', '--log-file=stdout',
+  ], { stdio: ['ignore', 'pipe', 'pipe'] });
+  proc.stdout.pipe(fs.createWriteStream(path.join(outDir, 'turn.log')));
+  return proc;
+}
+
+async function startServer(turn) {
   const proc = spawn('node', ['server/dist/index.js'], {
     cwd: root,
     env: {
       ...process.env, PORT: String(PORT), HOST: '127.0.0.1', DATA_DIR: path.join(outDir, `data-${Date.now()}`), LOG_LEVEL: 'info',
       RTC_LISTEN_IP: '127.0.0.1', RTC_BASE_PORT: '42000', RTC_WORKERS: '2', STUN_URLS: '', AUTH_RATE_LIMIT: '1000', JWT_SECRET: 'e2e',
+      ...(turn ? { TURN_URLS: 'turn:127.0.0.1:3478?transport=udp', TURN_SECRET } : {}),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -68,7 +82,9 @@ const videoPlaying = (page, timeout = 20000) =>
     const v = document.querySelector('[data-testid=stream-video]');
     return v && v.videoWidth > 0 && !v.paused && v.currentTime > 0.3;
   }, null, { timeout }).catch(() => { throw new Error('remote video never started playing'); });
-const nav = (page, label) => page.click(`.sidebar .nav:has-text("${label}")`);
+// Anchored match: "Settings" must not hit "Stream settings".
+const nav = (page, label) =>
+  page.locator('.sidebar .nav').filter({ hasText: new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`) }).first().click();
 
 async function register(page, username) {
   await page.goto(BASE);
@@ -138,7 +154,8 @@ async function measure(page, seconds, side) {
       };
 }
 
-const server = await startServer();
+const turn = startTurn();
+const server = await startServer(turn);
 // Host browser: REAL screen capture of the X display. The only automation is
 // that the system picker's "Entire screen" entry is chosen without a human.
 // (Do not add --use-fake-device-for-media-stream here: it silently replaces
@@ -153,7 +170,14 @@ const viewerBrowser = await chromium.launch({
   headless: false,
   args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--window-size=900,700', '--window-position=1560,0'],
 });
-const browser = { close: async () => { await hostBrowser.close(); await viewerBrowser.close(); } };
+// A window with continuous animation, so the captured desktop has real motion to encode.
+const MOTION_PAGE = `<body style="margin:0;background:#000"><canvas id=c width=900 height=640></canvas><script>
+const x=c.getContext('2d');let n=0;(function f(){n++;x.fillStyle='hsl('+(n%360)+' 60% 12%)';x.fillRect(0,0,900,640);
+for(let i=0;i<60;i++){x.fillStyle='hsl('+((i*37+n*2)%360)+' 80% 55%)';x.fillRect((i*151+n*(3+i%7))%900,(i*89+n*(2+i%5))%640,70,50)}
+x.fillStyle='#fff';x.font='28px sans-serif';x.fillText('frame '+n,20,40);requestAnimationFrame(f)})()</script>`;
+const motionBrowser = await chromium.launch({ headless: false, args: ['--window-size=900,700', '--window-position=1560,720'] });
+await (await motionBrowser.newPage({ viewport: { width: 900, height: 640 } })).setContent(MOTION_PAGE);
+const browser = { close: async () => { await hostBrowser.close(); await viewerBrowser.close(); await motionBrowser.close(); } };
 const newPage = async (b = viewerBrowser) => {
   const ctx = await b.newContext({ viewport: b === hostBrowser ? { width: 1480, height: 900 } : { width: 1280, height: 800 } });
   const page = await ctx.newPage();
@@ -419,9 +443,48 @@ try {
     await member.waitForSelector('.toast.success:has-text("Reconnected")', { timeout: 20000 });
     await waitStats(member, () => (window.__visionStream.latest()?.recv?.fps ?? 0) > 3, 'p2p viewer receives again', 25000);
   });
+
+  console.log('TURN relay');
+  if (!turn) console.log('  skip (coturn is not installed: apt-get install coturn)');
+  else {
+    const relayOnly = async (page, on) => {
+      await nav(page, 'Settings');
+      const sw = page.locator('.toggle-row:has-text("Relay-only connections") .switch');
+      if ((await sw.getAttribute('aria-checked')) !== String(on)) await sw.click();
+    };
+    await step('TURN: direct room connects through the relay when both sides are relay-only', async () => {
+      await host.click('[data-testid=leave]').catch(() => {});
+      await member.click('[data-testid=leave]').catch(() => {});
+      await relayOnly(host, true);
+      await relayOnly(member, true);
+      const room = await createRoom(host, 'p2p');
+      await joinByCode(member, room.code);
+      await member.waitForSelector('[data-testid=room-name]');
+      await share(host);
+      await videoPlaying(member);
+      await waitStats(member, () => { const s = window.__visionStream.latest(); return s?.recv?.fps > 3 && s.net?.relayed === true; }, 'viewer receives video over a relay candidate', 25000);
+      await sleep(3000);
+      measurements['turn_p2p_relay'] = { viewer: await measure(member, 5, 'recv'), path: (await stats(member)).net };
+      await host.click('[data-testid=leave]');
+      await member.waitForSelector('[data-testid=room-name]', { state: 'detached', timeout: 5000 }).catch(() => member.click('[data-testid=leave]'));
+    });
+    await step('TURN: group room viewer reaches the SFU through the relay', async () => {
+      await relayOnly(host, false);
+      const room = await createRoom(host, 'sfu');
+      await joinByCode(member, room.code);
+      await member.waitForSelector('[data-testid=room-name]');
+      await share(host);
+      await videoPlaying(member);
+      await waitStats(member, () => { const s = window.__visionStream.latest(); return s?.recv?.fps > 3 && s.net?.relayed === true; }, 'viewer receives SFU video over a relay candidate', 25000);
+      await waitStats(host, () => window.__visionStream.latest()?.net?.relayed === false, 'host stays on a direct path');
+      measurements['turn_sfu_relay'] = { path: (await stats(member)).net };
+      await relayOnly(member, false);
+    });
+  }
 } finally {
   await browser.close().catch(() => {});
   server.kill();
+  turn?.kill();
   fs.writeFileSync(path.join(outDir, 'results.json'), JSON.stringify({ when: new Date().toISOString(), results, measurements }, null, 2));
   console.log(`\n${results.filter((r) => r.ok).length} passed, ${failed} failed. Measurements: e2e/results/results.json`);
   process.exit(failed ? 1 : 0);

@@ -25,6 +25,12 @@ export interface RemoteTrack {
   receiver?: RTCRtpReceiver;
 }
 
+/** Options every transport takes besides the join result. */
+export interface TransportConfig {
+  /** Only use TURN relay candidates. */
+  relayOnly: boolean;
+}
+
 export type MediaConnectionState = 'new' | 'connecting' | 'connected' | 'disconnected' | 'failed';
 
 export interface TransportEvents {
