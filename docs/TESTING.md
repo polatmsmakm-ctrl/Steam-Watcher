@@ -73,7 +73,7 @@ None of the following could be exercised in the build environment. Each has a co
 | 1 | Installer | Download the `vision-stream-windows-installer` artifact from the CI run, install on Windows 10/11 | App starts, sign-in screen appears |
 | 2 | Screen picker in WebView2 | Share screen → confirm | Windows/WebView2 picker lists screens and windows; preview appears after choosing |
 | 3 | Monitor / window selection | Pick a second monitor, then a single window | The chosen surface is what viewers see; label on the stage matches |
-| 4 | NVENC is used | Share at High, open *Stream settings* | "Active encoder" shows a hardware implementation (e.g. `MediaFoundationVideoEncodeAccelerator`), "Hardware accelerated: Yes"; *Performance* shows NVENC utilisation > 0 |
+| 4 | NVENC is used | Share at High, open *Stream settings* | "Active encoder" names a platform encoder (on Windows typically containing `MediaFoundation`) rather than OpenH264/libaom/libvpx, and "Hardware accelerated: Yes"; *Performance* shows NVENC utilisation > 0 |
 | 5 | AV1 / HEVC | *Stream settings* table; RTX 40-series for AV1 encode | Hardware badge for the codec; Auto selects it; viewers decode it |
 | 6 | 1440p60 | High preset on a 1440p display | FPS sent ≈ 60, encode < 16 ms, limitation "none" |
 | 7 | 1440p120 | Ultra preset on a ≥120 Hz display with a game running | FPS captured and sent ≈ 120, encode < 8 ms. If lower, the app says so — record the real number |
