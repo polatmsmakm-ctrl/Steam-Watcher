@@ -1,0 +1,18 @@
+{
+  "name": "vision-stream",
+  "private": true,
+  "version": "0.1.0",
+  "description": "VISION STREAM — low-latency screen sharing for friends",
+  "workspaces": ["server", "app", "e2e"],
+  "scripts": {
+    "dev:server": "npm run dev -w server",
+    "dev:app": "npm run dev -w app",
+    "build": "npm run build -w app && npm run build -w server",
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w app",
+    "test": "npm test -w server",
+    "test:e2e": "npm test -w e2e",
+    "start": "npm start -w server",
+    "tauri": "npm run tauri -w app --"
+  },
+  "engines": { "node": ">=22" }
+}

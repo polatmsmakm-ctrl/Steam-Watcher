@@ -1,0 +1,10 @@
+node_modules/
+dist/
+target/
+*.log
+.env
+server/data/
+e2e/results/
+e2e/test-results/
+app/src-tauri/gen/
+.DS_Store
