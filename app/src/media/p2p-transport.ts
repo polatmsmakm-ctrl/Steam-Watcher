@@ -128,7 +128,7 @@ export class P2pTransport implements MediaTransport {
       this.ignoreOffer = !polite && collision;
       if (this.ignoreOffer) return;
       for (const [mid, id] of Object.entries(mids ?? {})) this.remoteMids.set(mid, id);
-      await pc.setRemoteDescription(description);
+      await pc.setRemoteDescription(this.withStartBitrate(description));
       if (description.type === 'offer') {
         await pc.setLocalDescription();
         this.signal({ description: pc.localDescription!.toJSON(), mids: this.localMids() });
@@ -140,6 +140,45 @@ export class P2pTransport implements MediaTransport {
         if (!this.ignoreOffer) throw e;
       }
     }
+  }
+
+  /**
+   * WebRTC starts every video encoder at ~300 kbps and probes upward, which
+   * makes the first seconds of a 1080p+ share blurry. `x-google-start-bitrate`
+   * on the remote description tells our encoder where to start instead (the
+   * same hint mediasoup-client applies in SFU rooms). Congestion control still
+   * backs off if the link cannot carry it.
+   */
+  private withStartBitrate(description: RTCSessionDescriptionInit): RTCSessionDescriptionInit {
+    const video = [...this.local.values()].find((p) => p.track.kind === 'video');
+    if (!video?.opts.maxBitrate || !description.sdp) return description;
+    const startKbps = Math.min(Math.round((video.opts.maxBitrate / 1000) * 0.6), 20_000);
+    let inVideo = false;
+    const withFmtp = new Set<string>();
+    const lines = description.sdp.split('\r\n');
+    for (const line of lines) {
+      if (line.startsWith('m=')) inVideo = line.startsWith('m=video');
+      const m = inVideo ? /^a=fmtp:(\d+) /.exec(line) : null;
+      if (m) withFmtp.add(m[1]!);
+    }
+    inVideo = false;
+    const out: string[] = [];
+    for (const line of lines) {
+      if (line.startsWith('m=')) inVideo = line.startsWith('m=video');
+      if (!inVideo) {
+        out.push(line);
+        continue;
+      }
+      const fmtp = /^a=fmtp:(\d+) (.*)$/.exec(line);
+      const rtpmap = /^a=rtpmap:(\d+) (VP8|VP9|H264|H265|AV1)\//i.exec(line);
+      if (fmtp && !/apt=/.test(fmtp[2]!)) out.push(`${line};x-google-start-bitrate=${startKbps}`);
+      else {
+        out.push(line);
+        // Codecs without an fmtp line (VP8, AV1 in some builds) need one to carry the hint.
+        if (rtpmap && !withFmtp.has(rtpmap[1]!)) out.push(`a=fmtp:${rtpmap[1]} x-google-start-bitrate=${startKbps}`);
+      }
+    }
+    return { type: description.type, sdp: out.join('\r\n') };
   }
 
   private attach(pub: LocalPub): void {

@@ -324,6 +324,7 @@ try {
 
   await step('stopping the share clears the stream for viewers', async () => {
     await host.click('[data-testid=stop-share]');
+    await waitStats(host, () => window.__visionStream.latest()?.send === null, 'sender statistics stop when the share stops');
     await guest.waitForSelector('.stage-empty:has-text("Nobody is sharing")', { timeout: 10000 });
   });
 
@@ -394,6 +395,12 @@ try {
     await share(member); // synthetic display source in the viewer browser; exercises renegotiation in the reverse direction
     await videoPlaying(host);
     await waitStats(host, () => (window.__visionStream.latest()?.recv?.fps ?? 0) > 3, 'host receives the member stream');
+    // The synthetic source carries audio, so this is where lip-sync can be measured.
+    await waitStats(host, () => window.__visionStream.latest()?.recv?.avOffsetMs != null, 'audio/video offset is measurable', 15000);
+    await sleep(3000);
+    const sync = await measure(host, 5, 'recv');
+    measurements['p2p_av_sync'] = { note: 'synthetic source with audio (viewer browser)', avOffsetMs: sync.avOffsetMs, fps: sync.fps };
+    assert(Math.abs(sync.avOffsetMs) < 150, `audio/video offset too large: ${sync.avOffsetMs} ms`);
     await member.click('[data-testid=stop-share]');
     await share(host);
     await videoPlaying(member);

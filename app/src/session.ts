@@ -542,6 +542,7 @@ class Session {
       const tracks = {
         video: remote.find((r) => r.source === 'screen')?.track.id,
         audio: remote.find((r) => r.source === 'screen-audio')?.track.id,
+        localVideo: this.screen?.videoPub ? this.screen.video.id : undefined,
       };
       const rtc = transport && reports.length ? this.sampler.sample(reports, tracks) : { t: Date.now(), send: null, recv: null, audio: null, net: null };
       const sample: Sample = { ...rtc, sys };

@@ -7,7 +7,7 @@ export interface BenchmarkResult {
   supported: boolean;
   /** Frames the encoder completed per second of wall-clock time. */
   fps: number;
-  /** Mean submit->output time per frame. */
+  /** Mean submit->output time per frame, including time spent queued behind earlier frames. */
   avgEncodeMs: number;
   p95EncodeMs: number;
   bitrateKbps: number;

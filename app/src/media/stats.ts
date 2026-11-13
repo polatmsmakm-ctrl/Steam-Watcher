@@ -95,11 +95,11 @@ export class StatsSampler {
   }
 
   /**
-   * @param tracks ids of the remote screen tracks being played. Needed because a
+   * @param tracks ids of the screen tracks in use (remote ones being played, local one being shared). Needed because a
    * receive transport also carries other inbound streams (voice, the SFU's
    * bandwidth-probing stream, receivers of streams that just ended).
    */
-  sample(reports: RTCStatsReport[], tracks: { video?: string; audio?: string } = {}): Omit<Sample, 'sys'> {
+  sample(reports: RTCStatsReport[], tracks: { video?: string; audio?: string; localVideo?: string } = {}): Omit<Sample, 'sys'> {
     const now = performance.now();
     const dt = this.prevTime ? (now - this.prevTime) / 1000 : 0;
     this.prevTime = now;
@@ -119,7 +119,11 @@ export class StatsSampler {
 
     // ---- outbound video (the screen we share) ----
     let send: VideoSendStats | null = null;
-    const outs = stats.filter((s) => s.type === 'outbound-rtp' && s.kind === 'video' && num(s.packetsSent) > 0);
+    // Only the encodings fed by the screen track we are sharing right now (senders of ended shares linger in the report).
+    const outs = stats.filter(
+      (s) => s.type === 'outbound-rtp' && s.kind === 'video' && tracks.localVideo !== undefined
+        && all.get(s.mediaSourceId)?.trackIdentifier === tracks.localVideo,
+    );
     if (outs.length) {
       const top = outs.reduce((a, b) => (num(b.frameHeight) > num(a.frameHeight) ? b : a));
       const source = all.get(top.mediaSourceId);

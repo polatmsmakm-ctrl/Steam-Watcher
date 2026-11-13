@@ -163,7 +163,7 @@ function Benchmark() {
       {progress !== null && <div className="progress"><i style={{ width: `${progress * 100}%` }} /></div>}
       {results && (
         <table className="table" data-testid="benchmark-results">
-          <thead><tr><th>Encoder</th><th>Type</th><th>Throughput</th><th>Encode time (avg / p95)</th><th>Bitrate</th><th>{target.fps} FPS target</th></tr></thead>
+          <thead><tr><th>Encoder</th><th>Type</th><th>Throughput</th><th>Frame latency (avg / p95)</th><th>Bitrate</th><th>{target.fps} FPS target</th></tr></thead>
           <tbody>
             {results.map((r) => (
               <tr key={`${r.codec}-${r.mode}`} style={r.supported ? undefined : { opacity: 0.45 }}>
